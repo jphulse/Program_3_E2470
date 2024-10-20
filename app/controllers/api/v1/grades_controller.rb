@@ -21,7 +21,8 @@ class GradesController < ApplicationController
     end
   end
 
-
+  # LOCALLY OBSOLETE.
+  # Will need to check this with mentor.
   def controller_locale
     locale_for_student
   end
@@ -30,17 +31,16 @@ class GradesController < ApplicationController
   # an assignment. It lists all participants of an assignment and all the reviews they received.
   # It also gives a final score, which is an average of all the reviews and greatest difference
   # in the scores of all the reviews.
+
+  # Concerns: No list of all participants (Is that a requirement?) whilst mentioned in the documentation.
+  # Does not list any reviews for the participants.
+  # Instead it provides an (assumed) graph of scores, their averages for each question, and penalties.
+  # Too many functions we cannot locally access.
   def view
+    # Finds the assignment
     @assignment = Assignment.find(params[:id])
-    questionnaires = @assignment.questionnaires
-    if @assignment.varying_rubrics_by_round?
-      @questions = retrieve_questions questionnaires, @assignment.id
-    else
-      @questions = {}
-      questionnaires.each do |questionnaire|
-        @questions[questionnaire.symbol] = questionnaire.questions
-      end
-    end
+    # Extracts the questionnaires
+    filter_questionnaires
     @scores = review_grades(@assignment, @questions)
     @num_reviewers_assigned_scores = @scores[:teams].length # After rejecting nil scores need original length to iterate over hash
     averages = vector(@scores)
@@ -49,6 +49,7 @@ class GradesController < ApplicationController
     penalties(@assignment.id)
     @show_reputation = false
   end
+
 
   def view_my_scores
     @participant = AssignmentParticipant.find(params[:id])
@@ -281,5 +282,19 @@ def view_team_allowed?
     current_user_is_assignment_participant?(participant.assignment.id)
   else
     true
+  end
+end
+
+# Checks if the rubric varies by round and then returns appropriate
+# questions based on the ruling
+def filter_questionnaires
+  questionnaires = @assignment.questionnaires
+  if @assignment.varying_rubrics_by_round?
+    @questions = retrieve_questions questionnaires, @assignment.id
+  else
+    @questions = {}
+    questionnaires.each do |questionnaire|
+      @questions[questionnaire.symbol] = questionnaire.questions
+    end
   end
 end
