@@ -208,7 +208,6 @@ class Api::V1::GradesController < ApplicationController
     vmquestions = questionnaire.questions
     vm.add_questions(vmquestions)
     vm.add_team_members(@team)
-    qn = AssignmentQuestionnaire.where(assignment_id: @assignment.id, used_in_round: 2).size >= 1
     vm.add_reviews(@participant, @team, @assignment.varying_rubrics_by_round?)
     vm.calculate_metrics
     vm
@@ -369,7 +368,7 @@ end
 def retrieve_questions(questionnaires, assignment_id)
   questions = {}
   questionnaires.each do |questionnaire|
-    round = AssignmentQuestionnaire.where(assignment_id: assignment_id, questionnaire_id: questionnaire.id).first.used_in_round
+    round = AssignmentQuestionnaire.where(assignment_id: assignment_id, questionnaire_id: questionnaire.id).first&.used_in_round
     questionnaire_symbol = if round.nil?
                              questionnaire.symbol
                            else
@@ -393,8 +392,8 @@ def penalties(assignment_id)
     unless penalties[:submission].zero? || penalties[:review].zero? || penalties[:meta_review].zero?
 
       @total_penalty = (penalties[:submission] + penalties[:review] + penalties[:meta_review])
-      l_policy = LatePolicy.find(@assignment.late_policy_id)
-      @total_penalty = l_policy.max_penalty if @total_penalty > l_policy.max_penalty
+      # l_policy = LatePolicy.find(@assignment.late_policy_id)
+      # @total_penalty = l_policy.max_penalty if @total_penalty > l_policy.max_penalty
       attributes(@participant) if calculate_for_participants
     end
     assign_all_penalties(participant, penalties)
@@ -411,6 +410,7 @@ def are_needed_authorizations_present?(id, *authorizations)
   !authorizations.include?(authorization)
 end
 
+# Returns the participant and grade from given params
 def grade_to_string(params)
   specific_params = params.permit(:participant, :grade)
   param_hash = specific_params.to_unsafe_h
