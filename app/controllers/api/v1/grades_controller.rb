@@ -164,7 +164,7 @@ class Api::V1::GradesController < ApplicationController
       message = if participant.grade.nil?
                   'The computed score will be used for ' + participant.user.name + '.'
                 else
-                  'A score of ' + params[:participant][:grade] + '% has been saved for ' + participant.user.name + '.'
+                  'A score of ' + grade_to_string(params) + '% has been saved for ' + participant.user.name + '.'
                 end
     end
     flash[:note] = message
@@ -409,6 +409,13 @@ def are_needed_authorizations_present?(id, *authorizations)
 
   authorization = participant.authorization
   !authorizations.include?(authorization)
+end
+
+def grade_to_string(params)
+  specific_params = params.permit(:participant, :grade)
+  param_hash = specific_params.to_unsafe_h
+
+  param_hash.inspect
 end
 
 
