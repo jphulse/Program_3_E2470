@@ -93,7 +93,7 @@ class Api::V1::GradesController < ApplicationController
     counter_for_same_rubric = 0
     if @assignment.vary_by_topic?
       topic_id = SignedUpTeam.topic_id_by_team_id(@team_id)
-      topic_specific_questionnaire = AssignmentQuestionnaire.where(assignment_id: @assignment.id, topic_id: topic_id).first.questionnaire
+      topic_specific_questionnaire = AssignmentQuestionnaire.where(assignment_id: @assignment.id, topic_id: topic_id).first&.questionnaire
       @vmlist << populate_view_model(topic_specific_questionnaire)
     end
     questionnaires.each do |questionnaire|
@@ -229,14 +229,14 @@ class Api::V1::GradesController < ApplicationController
     # ACS Check if team count is more than 1 instead of checking if it is a team assignment
     if @participant.assignment.max_team_size > 1
       team = @participant.team
-      unless team.nil? || (team.user? session[:user])
+      unless team.nil? || (team.users.include? session[:user])
         flash[:error] = 'You are not on the team that wrote this feedback'
         redirect_to '/'
         return true
       end
     else
       reviewer = AssignmentParticipant.where(user_id: session[:user].id, parent_id: @participant.assignment.id).first
-      return true unless current_user_id?(reviewer.try(:user_id))
+      return true unless session[:user_id] == reviewer.try(:user_id)
     end
     false
   end
