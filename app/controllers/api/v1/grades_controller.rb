@@ -1,4 +1,4 @@
-class GradesController < ApplicationController
+class Api::V1::GradesController < ApplicationController
   helper :file
   helper :submitted_content
   helper :penalty
@@ -17,7 +17,7 @@ class GradesController < ApplicationController
     when 'view_team'
       view_team_allowed?
     else
-      current_user_has_ta_privileges?
+      user_ta_privileges?
     end
   end
 
@@ -51,6 +51,8 @@ class GradesController < ApplicationController
   end
 
 
+  # Get method allowing a participant on Expertiza to view their average scores based on
+  # rounds of reviews assuming the action is allowed to the current user with  a given id.
   def view_my_scores
     @participant = AssignmentParticipant.find(params[:id])
     @team_id = TeamsUser.team_id(@participant.parent_id, @participant.user_id)
@@ -74,6 +76,9 @@ class GradesController < ApplicationController
   end
 
   # method for alternative view
+  # Allows the user to view information regarding their team that they have signed up with
+  # This includes information such as the topic if relevant to the assignment, and some info related
+  # to the rubrics or rounds of peer review
   def view_team
     @participant = AssignmentParticipant.find(params[:id])
     @assignment = @participant.assignment
@@ -114,6 +119,8 @@ class GradesController < ApplicationController
     @current_role_name = current_role_name
   end
 
+  # Sets information for editing the grade information, setting the scores
+  # for every question after listing the questions out
   def edit
     @participant = AssignmentParticipant.find(params[:id])
     @assignment = @participant.assignment
@@ -121,6 +128,12 @@ class GradesController < ApplicationController
     @scores = participant_scores(@participant, @questions)
   end
 
+  #  Provides functionality for instructors to perform review on an assignment
+  #  appropriately redirects the instructor to the correct page based on whether
+  #  or not the review already exists within the system.
+  # TODO The top part of this method is rather verbose, the second part of the method
+  # TODO is the important part so we should make helpers to get review_mapping, review, and review_exists
+  # TODO within this method to improve readability
   def instructor_review
     participant = AssignmentParticipant.find(params[:id])
     reviewer = AssignmentParticipant.find_or_create_by(user_id: session[:user].id, parent_id: participant.assignment.id)
@@ -141,6 +154,9 @@ class GradesController < ApplicationController
   end
 
   # This method is used from edit methods
+  # Finds all questions in all relevant questionnaires associated with this
+  # assignment, this is a helper method
+  # TODO should be private.
   def list_questions(assignment)
     questions = {}
     questionnaires = assignment.questionnaires
@@ -150,6 +166,13 @@ class GradesController < ApplicationController
     questions
   end
 
+  # patch method to update the information regarding the total score for an
+  # associated with this participant for the current assignment, as long as the total_score
+  # is different from the grade
+  # TODO the bottom of this method where we call flash[:note] = message will work with the valid
+  # TODO path but not in the case of the unless statement evaluating to true, as we never initialize
+  # TODO message then, so error handling is bad here
+  # FIXME potentially obsolete, remove? No API endpoint for this in the base code
   def update
     participant = AssignmentParticipant.find(params[:id])
     total_score = params[:total_score]
@@ -164,6 +187,7 @@ class GradesController < ApplicationController
     flash[:note] = message
     redirect_to action: 'edit', id: params[:id]
   end
+
 
   def save_grade_and_comment_for_submission
     participant = AssignmentParticipant.find_by(id: params[:participant_id])
@@ -297,4 +321,13 @@ def filter_questionnaires
       @questions[questionnaire.symbol] = questionnaire.questions
     end
   end
+end
+
+# Helper method that finds the current user from the session and then determines
+# if that user has the privileges afforded to someone with the role of TA
+# or higher
+def user_ta_privileges?
+  user_id = session[:user_id]
+  user = User.find(user_id)
+  user.role.all_privileges_of?(Role.find_by(name: 'Teaching Assistant'))
 end
