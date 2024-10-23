@@ -131,25 +131,14 @@ class Api::V1::GradesController < ApplicationController
   #  Provides functionality for instructors to perform review on an assignment
   #  appropriately redirects the instructor to the correct page based on whether
   #  or not the review already exists within the system.
-  # TODO The top part of this method is rather verbose, the second part of the method
-  # TODO is the important part so we should make helpers to get review_mapping, review, and review_exists
-  # TODO within this method to improve readability
   def instructor_review
     participant = AssignmentParticipant.find(params[:id])
-    reviewer = AssignmentParticipant.find_or_create_by(user_id: session[:user].id, parent_id: participant.assignment.id)
-    reviewer.set_handle if reviewer.new_record?
-    review_exists = true
-    reviewee = participant.team
-    review_mapping = ReviewResponseMap.find_or_create_by(reviewee_id: reviewee.id, reviewer_id: reviewer.id, reviewed_object_id: participant.assignment.id)
+    review_mapping = find_participant_review_mapping(participant)
     if review_mapping.new_record?
-      review_exists = false
+      redirect_to controller: 'response', action: 'edit', id: review_mapping.map_id, return: 'instructor'
     else
       review = Response.find_by(map_id: review_mapping.map_id)
-    end
-    if review_exists
-      redirect_to controller: 'response', action: 'edit', id: review.id, return: 'instructor'
-    else
-      redirect_to controller: 'response', action: 'new', id: review_mapping.map_id, return: 'instructor'
+      redirect_to controller: 'response', action: 'new', id: review.id, return: 'instructor'
     end
   end
 
@@ -370,6 +359,16 @@ def participant_scores(participant, questions)
     scores[:total_score] = 100 if scores[:total_score] > 100
   end
   scores
+end
+
+# from a given participant we find or create an AsssignmentParticipant to review the team of that participant, and set
+# the handle if it is a new record.  Then using this information we locate or create a ReviewResponseMap in order to
+# facilitate the response
+def find_participant_review_mapping(participant)
+  reviewer = AssignmentParticipant.find_or_create_by(user_id: session[:user].id, parent_id: participant.assignment.id)
+  reviewer.set_handle if reviewer.new_record?
+  reviewee = participant.team
+  ReviewResponseMap.find_or_create_by(reviewee_id: reviewee.id, reviewer_id: reviewer.id, reviewed_object_id: participant.assignment.id)
 end
 
 
