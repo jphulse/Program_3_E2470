@@ -21,12 +21,6 @@ class Api::V1::GradesController < ApplicationController
     end
   end
 
-  # LOCALLY OBSOLETE.
-  # Will need to check this with mentor.
-  def controller_locale
-    locale_for_student
-  end
-
   # the view grading report provides the instructor with an overall view of all the grades for
   # an assignment. It lists all participants of an assignment and all the reviews they received.
   # It also gives a final score, which is an average of all the reviews and greatest difference
@@ -116,7 +110,7 @@ class Api::V1::GradesController < ApplicationController
       end
       @vmlist << populate_view_model(questionnaire)
     end
-    @current_role_name = current_role_name
+    @current_role_name = session[:user].role.name
   end
 
   # Sets information for editing the grade information, setting the scores
@@ -406,6 +400,15 @@ def penalties(assignment_id)
     assign_all_penalties(participant, penalties)
   end
   @assignment[:is_penalty_calculated] = true unless @assignment.is_penalty_calculated
+end
+
+# Does not belong here. ApplicationController.
+def are_needed_authorizations_present?(id, *authorizations)
+  participant = Participant.find_by(id: id)
+  return false if participant.nil?
+
+  authorization = participant.authorization
+  !authorizations.include?(authorization)
 end
 
 
