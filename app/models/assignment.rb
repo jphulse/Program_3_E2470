@@ -8,7 +8,7 @@ class Assignment < ApplicationRecord
   has_many :questionnaires, through: :assignment_questionnaires
   has_many :response_maps, foreign_key: 'reviewed_object_id', dependent: :destroy, inverse_of: :assignment
   has_many :review_mappings, class_name: 'ReviewResponseMap', foreign_key: 'reviewed_object_id', dependent: :destroy, inverse_of: :assignment
-  has_many :sign_up_topics , class_name: 'SignUpTopic', foreign_key: 'assignment_id', dependent: :destroy
+  has_many :sign_up_topics, class_name: 'SignUpTopic', foreign_key: 'assignment_id', dependent: :destroy
   belongs_to :course, optional: true
   belongs_to :instructor, class_name: 'User', inverse_of: :assignments
 

@@ -60,7 +60,7 @@ class Api::V1::GradesController < ApplicationController
 
     @assignment = @participant.assignment
     questionnaires = @assignment.questionnaires
-    @questions = retrieve_questions questionnaires, @assignment.id
+    @questions = retrieve_questions(questionnaires, @assignment.id)
     # @pscore has the newest versions of response for each response map, and only one for each response map (unless it is vary rubric by round)
     @pscore = participant_scores(@participant, @questions)
     make_chart
@@ -220,7 +220,8 @@ class Api::V1::GradesController < ApplicationController
     vm
   end
 
-  def redirect_when_disallowed #Could refactor this to two methods using disalowed and redirect
+  def redirect_when_disallowed
+    # Could refactor this to two methods using disalowed and redirect
     # For author feedback, participants need to be able to read feedback submitted by other teammates.
     # If response is anything but author feedback, only the person who wrote feedback should be able to see it.
     ## This following code was cloned from response_controller.
@@ -369,6 +370,42 @@ def find_participant_review_mapping(participant)
   reviewer.set_handle if reviewer.new_record?
   reviewee = participant.team
   ReviewResponseMap.find_or_create_by(reviewee_id: reviewee.id, reviewer_id: reviewer.id, reviewed_object_id: participant.assignment.id)
+end
+
+def retrieve_questions(questionnaires, assignment_id)
+  questions = {}
+  questionnaires.each do |questionnaire|
+    round = AssignmentQuestionnaire.where(assignment_id: assignment_id, questionnaire_id: questionnaire.id).first.used_in_round
+    questionnaire_symbol = if round.nil?
+                             questionnaire.symbol
+                           else
+                             (questionnaire.symbol.to_s + round.to_s).to_sym
+                           end
+    questions[questionnaire_symbol] = questionnaire.questions
+  end
+  questions
+end
+
+# This function calculates all the penalties
+# QUESTION: Can we add new classes (Late Policy)?
+def penalties(assignment_id)
+  @all_penalties = {}
+  @assignment = Assignment.find(assignment_id)
+  calculate_for_participants = true unless @assignment.is_penalty_calculated
+  Participant.where(parent_id: assignment_id).each do |participant|
+    penalties = calculate_penalty(participant.id)
+    @total_penalty = 0
+
+    unless penalties[:submission].zero? || penalties[:review].zero? || penalties[:meta_review].zero?
+
+      @total_penalty = (penalties[:submission] + penalties[:review] + penalties[:meta_review])
+      l_policy = LatePolicy.find(@assignment.late_policy_id)
+      @total_penalty = l_policy.max_penalty if @total_penalty > l_policy.max_penalty
+      attributes(@participant) if calculate_for_participants
+    end
+    assign_all_penalties(participant, penalties)
+  end
+  @assignment[:is_penalty_calculated] = true unless @assignment.is_penalty_calculated
 end
 
 
