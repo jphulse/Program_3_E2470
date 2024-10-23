@@ -40,7 +40,7 @@ class Api::V1::GradesController < ApplicationController
     # Finds the assignment
     @assignment = Assignment.find(params[:id])
     # Extracts the questionnaires
-    filter_questionnaires
+    @questions = filter_questionnaires
     @scores = review_grades(@assignment, @questions)
     @num_reviewers_assigned_scores = @scores[:teams].length # After rejecting nil scores need original length to iterate over hash
     averages = vector(@scores)
@@ -314,12 +314,13 @@ end
 def filter_questionnaires
   questionnaires = @assignment.questionnaires
   if @assignment.varying_rubrics_by_round?
-    @questions = retrieve_questions questionnaires, @assignment.id
+    retrieve_questions(questionnaires, @assignment.id)
   else
-    @questions = {}
+    questions = {}
     questionnaires.each do |questionnaire|
-      @questions[questionnaire.symbol] = questionnaire.questions
+      questions[questionnaire.symbol] = questionnaire.questions
     end
+    questions
   end
 end
 
@@ -331,3 +332,44 @@ def user_ta_privileges?
   user = User.find(user_id)
   user.role.all_privileges_of?(Role.find_by(name: 'Teaching Assistant'))
 end
+
+def review_grades(assignment, questions)
+  scores = { participants: {}, teams: {} }
+  assignment.participants.each do |participant|
+    scores[:participants][participant.id.to_s.to_sym] = participant_scores(participant, questions)
+  end
+end
+
+# QUESTION: We cannot find participant.grade
+def participant_scores(participant, questions)
+  assignment = participant.assignment
+  scores = {}
+  scores[:participant] = participant
+  compute_assignment_score(participant, questions, scores)
+  # Compute the Total Score (with question weights factored in)
+  scores[:total_score] = compute_total_score(assignment, scores)
+
+  # merge scores[review#] (for each round) to score[review]
+  merge_scores(participant, scores) if assignment.varying_rubrics_by_round?
+  # In the event that this is a microtask, we need to scale the score accordingly and record the total possible points
+  if assignment.microtask?
+    topic = SignUpTopic.find_by(assignment_id: assignment.id)
+    return if topic.nil?
+
+    scores[:total_score] *= (topic.micropayment.to_f / 100)
+    scores[:max_pts_available] = topic.micropayment
+  end
+
+  scores[:total_score] = compute_total_score(assignment, scores)
+
+  # update :total_score key in scores hash to user's current grade if they have one
+  # update :total_score key in scores hash to 100 if the current value is greater than 100
+  if participant.grade
+    scores[:total_score] = participant.grade
+  else
+    scores[:total_score] = 100 if scores[:total_score] > 100
+  end
+  scores
+end
+
+
